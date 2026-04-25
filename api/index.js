@@ -1,6 +1,6 @@
 const { Telegraf } = require('telegraf');
 const { createClient } = require('@supabase/supabase-js');
-const axios = require('axios'); // La librería axios agregada
+const axios = require('axios');
 
 // --- CONFIGURACIÓN ---
 const bot = new Telegraf(process.env.BOT_TOKEN || '8614330099:AAGG95zS5SSm1qlTWMB-WvHqKcjV2VMNP3A');
@@ -9,7 +9,6 @@ const supabase = createClient(
     process.env.SUPABASE_KEY || 'sb_secret_vRuDoOpBaWK-Mcy0bJsc8Q_aB8o3PsO'
 );
 
-// TOKEN DE CRYPTO PAY (Obtenlo en @CryptoBot -> Crypto Pay -> Create App)
 const CRYPTO_PAY_TOKEN = process.env.CRYPTO_PAY_TOKEN || '567910:AAdGD25QHCMfL4WOwg6SggU4DSAFpCubNfQ';
 const cryptoPay = axios.create({
     baseURL: 'https://pay.crypt.bot/api',
@@ -19,7 +18,7 @@ const cryptoPay = axios.create({
 const CANAL_1 = '@CryptoInvestmentsWebs'; 
 const CANAL_2 = '@AlfaWithdrawalChannel';
 
-// --- LÓGICA DE INICIO Y REGISTRO ---
+// --- LÓGICA DE INICIO ---
 bot.start(async (ctx) => {
     const userId = ctx.from.id;
     const referrerId = ctx.payload ? Number(ctx.payload) : null; 
@@ -47,7 +46,6 @@ bot.start(async (ctx) => {
 
         if (!user) {
             await supabase.from('usuarios').insert([{ id_telegram: userId, referido_por: referrerId, balance: 0 }]);
-
             if (referrerId && referrerId !== userId) {
                 let { data: inviter } = await supabase.from('usuarios').select('balance').eq('id_telegram', referrerId).single();
                 if (inviter) {
@@ -68,54 +66,50 @@ bot.start(async (ctx) => {
     }
 });
 
-// --- LÓGICA DE RETIRO AUTOMÁTICO ---
-bot.on('web_app_data', async (ctx) => {
-    try {
-        const data = JSON.parse(ctx.webAppData.data().text());
-
-        if (data.accion === "retiro_solicitado") {
-            const userId = data.id;
-            const monto = parseFloat(data.monto.split(' ')[0]); // Extrae el número de "0.010 TON"
-
-            // 1. Validar saldo en base de datos
-            const { data: user } = await supabase.from('usuarios').select('balance').eq('id_telegram', userId).single();
-
-            if (user && parseFloat(user.balance) >= monto) {
-                // 2. Intentar transferencia vía Crypto Pay
-                try {
-                    const response = await cryptoPay.post('/transfer', {
-                        user_id: userId,
-                        asset: 'TON',
-                        amount: monto,
-                        spend_id: `ref_withdraw_${userId}_${Date.now()}`
-                    });
-
-                    if (response.data.ok) {
-                        // 3. Descontar saldo si el pago fue exitoso
-                        await supabase.from('usuarios').update({ balance: 0 }).eq('id_telegram', userId);
-                        await ctx.reply(`✅ **Retiro Automático Exitoso**\n💰 Has recibido ${monto} TON en @CryptoBot.`);
-                    }
-                } catch (payErr) {
-                    console.error("Error CryptoPay:", payErr.response?.data || payErr.message);
-                    await ctx.reply("❌ Error en el procesador de pagos. Fondos insuficientes en el bot.");
-                }
-            } else {
-                await ctx.reply("❌ Saldo insuficiente.");
-            }
-        }
-    } catch (e) {
-        console.error("Error procesando retiro:", e);
-    }
-});
-
 bot.action('check_sub', (ctx) => ctx.reply("Reenvía /start para verificar."));
 
+// --- EXPORTACIÓN PARA VERCEL (Manejador de Retiro Directo) ---
 module.exports = async (req, res) => {
+    // Si la petición viene de la Mini App (Fetch Directo)
+    if (req.body && req.body.accion_manual === "retiro_directo") {
+        const { id, monto } = req.body;
+        try {
+            // 1. Validar en Supabase
+            const { data: user } = await supabase.from('usuarios').select('balance').eq('id_telegram', id).single();
+            
+            if (user && parseFloat(user.balance) >= monto) {
+                // 2. Transferencia en Crypto Pay
+                const response = await cryptoPay.post('/transfer', {
+                    user_id: id,
+                    asset: 'TON',
+                    amount: monto,
+                    spend_id: `withdraw_${id}_${Date.now()}`
+                });
+
+                if (response.data.ok) {
+                    // 3. Resetear balance
+                    await supabase.from('usuarios').update({ balance: 0 }).eq('id_telegram', id);
+                    await bot.telegram.sendMessage(id, `✅ **Retiro Automático Exitoso**\n💰 Has recibido ${monto} TON en @CryptoBot.`);
+                    return res.status(200).json({ ok: true });
+                }
+            }
+            return res.status(400).json({ error: "Saldo insuficiente" });
+        } catch (err) {
+            console.error("Error en pago:", err.response?.data || err.message);
+            return res.status(500).json({ error: "Fallo en el pago automático" });
+        }
+    }
+
+    // Si la petición viene de Telegram (Webhooks normales)
     if (req.method === 'POST') {
         try {
             await bot.handleUpdate(req.body);
             res.status(200).send('OK');
-        } catch (err) { res.status(500).send('Error'); }
-    } else { res.status(200).send('Bot Activo'); }
+        } catch (err) {
+            res.status(500).send('Error');
+        }
+    } else {
+        res.status(200).send('Bot Online');
+    }
 };
-          
+            
