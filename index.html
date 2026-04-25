@@ -7,7 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <title>TON Referral Mini App</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #f4f4f4; color: #333; margin: 0; padding: 10px; display: none; /* Se oculta hasta verificar usuario */ }
+        body { font-family: sans-serif; text-align: center; background: #f4f4f4; color: #333; margin: 0; padding: 10px; display: none; }
         .card { background: white; margin: 15px auto; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px; }
         h1 { color: #0088cc; font-size: 2.5em; margin: 10px 0; }
         h2 { font-size: 1.1em; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
@@ -57,54 +57,49 @@
         async function cargarDatosUsuario() {
             const user = tg.initDataUnsafe.user;
             
-            // 1. SEGURIDAD: Bloqueo si no entra desde Telegram
             if (!user) {
                 document.body.style.display = "block";
                 document.body.innerHTML = `
                     <div style="padding: 50px; text-align: center;">
                         <h2 style="color: #cc0000;">⚠️ ACCESO DENEGADO</h2>
-                        <p>Esta aplicación solo es accesible desde el Bot oficial de Telegram.</p>
-                        <br>
-                        <a href="https://t.me/ReferidosBotTon_bot" style="display: inline-block; background: #0088cc; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none;">Volver al Bot</a>
+                        <p>Por favor, abre la app desde el bot.</p>
                     </div>`;
                 return;
             }
 
-            // Mostrar el cuerpo si el usuario es válido
             document.body.style.display = "block";
-
-            const userId = user.id;
+            const userId = user.id; // Telegram User ID
             document.getElementById('ref-link').value = `https://t.me/ReferidosBotTon_bot?start=${userId}`;
 
             try {
-                // 2. CONSULTAR BALANCE
-                let { data: usuario, error: userError } = await supabaseClient
+                // 1. CONSULTAR BALANCE (Forzamos conversión a número)
+                let { data: usuario } = await supabaseClient
                     .from('usuarios')
                     .select('balance')
                     .eq('id_telegram', userId)
                     .single();
 
                 if (usuario) {
-                    const balance = Number(usuario.balance) || 0;
-                    document.getElementById('balance').innerText = `${balance.toFixed(3)} TON`;
-
-                    if (balance >= 0.05) {
+                    const balanceReal = parseFloat(usuario.balance) || 0;
+                    document.getElementById('balance').innerText = balanceReal.toFixed(3) + " TON";
+                    if (balanceReal >= 0.05) {
                         document.getElementById('withdraw-btn').disabled = false;
                     }
                 }
 
-                // 3. CONSULTAR CONTEO DE REFERIDOS (Exacto)
+                // 2. CONSULTAR CONTEO DE REFERIDOS
+                // Usamos el ID directamente (como número) para que coincida con la DB
                 let { count, error: countError } = await supabaseClient
                     .from('usuarios')
                     .select('*', { count: 'exact', head: true })
-                    .eq('referido_por', userId);
+                    .eq('referido_por', userId); 
 
                 if (!countError) {
                     document.getElementById('referrals-count').innerText = count || 0;
                 }
 
             } catch (err) {
-                console.error("Error:", err);
+                console.error("Error cargando datos:", err);
             }
         }
 
@@ -112,21 +107,13 @@
             const copyText = document.getElementById("ref-link");
             copyText.select();
             navigator.clipboard.writeText(copyText.value);
-            
-            const status = document.getElementById('copy-status');
-            status.innerText = "¡Link copiado! ✅";
-            status.style.color = "#0088cc";
-            setTimeout(() => {
-                status.innerText = "Toca el link para copiarlo";
-                status.style.color = "#888";
-            }, 2000);
+            document.getElementById('copy-status').innerText = "¡Copiado! ✅";
+            setTimeout(() => { document.getElementById('copy-status').innerText = "Toca el link para copiarlo"; }, 2000);
         }
 
         function solicitarRetiro() {
-            tg.showConfirm("¿Confirmas que deseas solicitar el retiro de tus fondos?", (confirmado) => {
-                if (confirmado) {
-                    tg.showAlert("Solicitud enviada. El administrador revisará tu cuenta.");
-                }
+            tg.showConfirm("¿Deseas solicitar el retiro?", (confirmado) => {
+                if (confirmado) tg.showAlert("Solicitud enviada.");
             });
         }
 
