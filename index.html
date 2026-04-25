@@ -68,11 +68,10 @@
             }
 
             document.body.style.display = "block";
-            const userId = user.id; // Telegram User ID
+            const userId = user.id;
             document.getElementById('ref-link').value = `https://t.me/ReferidosBotTon_bot?start=${userId}`;
 
             try {
-                // 1. CONSULTAR BALANCE (Forzamos conversión a número)
                 let { data: usuario } = await supabaseClient
                     .from('usuarios')
                     .select('balance')
@@ -82,13 +81,12 @@
                 if (usuario) {
                     const balanceReal = parseFloat(usuario.balance) || 0;
                     document.getElementById('balance').innerText = balanceReal.toFixed(3) + " TON";
+                    // Habilitar botón si cumple el mínimo de 0.01
                     if (balanceReal >= 0.01) {
                         document.getElementById('withdraw-btn').disabled = false;
                     }
                 }
 
-                // 2. CONSULTAR CONTEO DE REFERIDOS
-                // Usamos el ID directamente (como número) para que coincida con la DB
                 let { count, error: countError } = await supabaseClient
                     .from('usuarios')
                     .select('*', { count: 'exact', head: true })
@@ -111,13 +109,30 @@
             setTimeout(() => { document.getElementById('copy-status').innerText = "Toca el link para copiarlo"; }, 2000);
         }
 
+        // --- FUNCIÓN DE RETIRO AUTOMÁTICO CORREGIDA ---
         function solicitarRetiro() {
-            tg.showConfirm("¿Deseas solicitar el retiro?", (confirmado) => {
-                if (confirmado) tg.showAlert("Solicitud enviada.");
+            const user = tg.initDataUnsafe.user;
+            const balanceTexto = document.getElementById('balance').innerText;
+
+            tg.showConfirm(`¿Confirmas el retiro automático de ${balanceTexto} a tu cuenta de @CryptoBot?`, (confirmado) => {
+                if (confirmado) {
+                    // Preparamos el objeto JSON para el BOT
+                    const datosRetiro = {
+                        accion: "retiro_solicitado",
+                        id: user.id,
+                        monto: balanceTexto // Enviamos ej: "0.010 TON"
+                    };
+
+                    // ENVIAR DATOS AL BOT Y CERRAR
+                    tg.sendData(JSON.stringify(datosRetiro));
+                    
+                    // Mostramos un aviso rápido antes de que se cierre
+                    tg.showAlert("🚀 Procesando retiro... Revisa el chat del bot.");
+                }
             });
         }
 
         cargarDatosUsuario();
     </script>
 </body>
-</html>
+    </html>
