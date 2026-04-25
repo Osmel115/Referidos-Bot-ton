@@ -3,7 +3,7 @@ const { createClient } = require('@supabase/supabase-js');
 
 // --- CONFIGURACIÓN ---
 const bot = new Telegraf('TU_TOKEN_BOTFATHER');
-const supabase = createClient('TU_SUPABASE_URL', 'TU_SUPABASE_KEY');
+const supabase = createClient('https://zzjxfwsqrzzehzongdrd.supabase.co', 'sb_secret_vRuDoOpBaWK-Mcy0bJsc8Q_aB8o3PsO');
 
 const CANAL_1 = '@tu_canal_1';
 const CANAL_2 = '@tu_canal_2';
