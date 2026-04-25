@@ -5,13 +5,12 @@ const { createClient } = require('@supabase/supabase-js');
 const bot = new Telegraf('8614330099:AAGG95zS5SSm1qlTWMB-WvHqKcjV2VMNP3A');
 const supabase = createClient('https://zzjxfwsqrzzehzongdrd.supabase.co', 'sb_secret_vRuDoOpBaWK-Mcy0bJsc8Q_aB8o3PsO');
 
-// REEMPLAZA ESTOS CON TUS CANALES REALES
 const CANAL_1 = '@CryptoInvestmentsWebs'; 
 const CANAL_2 = '@AlfaWithdrawalChannel';
 
 bot.start(async (ctx) => {
     const userId = ctx.from.id;
-    const referrerId = ctx.payload; 
+    const referrerId = ctx.payload ? parseInt(ctx.payload) : null; 
 
     try {
         // 1. Verificación de canales
@@ -22,7 +21,7 @@ bot.start(async (ctx) => {
                              ['member', 'administrator', 'creator'].includes(member2.status);
 
         if (!isSubscribed) {
-            return ctx.reply(`❌ Debes unirte a ${CANAL_1} y ${CANAL_2} para participar.`);
+            return ctx.reply(`❌ Debes unirte a los canales para participar:\n1️⃣ ${CANAL_1}\n2️⃣ ${CANAL_2}`);
         }
 
         // 2. Revisar si el usuario ya existe
@@ -38,8 +37,8 @@ bot.start(async (ctx) => {
                 { id_telegram: userId, referido_por: referrerId }
             ]);
 
-            // Pagar al invitador
-            if (referrerId && referrerId != userId) {
+            // Pagar al invitador si existe y no es el mismo usuario
+            if (referrerId && referrerId !== userId) {
                 let { data: inviter } = await supabase
                     .from('usuarios')
                     .select('balance')
@@ -47,7 +46,7 @@ bot.start(async (ctx) => {
                     .single();
 
                 if (inviter) {
-                    const nuevoBalance = (inviter.balance || 0) + 0.01;
+                    const nuevoBalance = (Number(inviter.balance) || 0) + 0.01;
                     await supabase
                         .from('usuarios')
                         .update({ balance: nuevoBalance })
@@ -61,28 +60,30 @@ bot.start(async (ctx) => {
         ctx.reply("✅ ¡Verificación exitosa!", {
             reply_markup: {
                 inline_keyboard: [[
-                    { text: "🚀 Abrir Panel", web_app: { url: "https://osmel115.github.io/Referidos-Bot-ton/" } }
+                    // USAMOS LA URL DE VERCEL AQUÍ
+                    { text: "🚀 Abrir Panel", web_app: { url: "https://referidos-bot-ton.vercel.app/" } }
                 ]]
             }
         });
 
     } catch (error) {
-        console.error(error);
-        ctx.reply("Hubo un error. Asegúrate de que el bot sea administrador de los canales.");
+        console.error("Error en el bot:", error);
+        ctx.reply("❌ Error: Asegúrate de que el bot sea administrador de los canales.");
     }
 });
 
 // --- LÓGICA PARA VERCEL (WEBHOOK) ---
 module.exports = async (req, res) => {
-    try {
-        if (req.method === 'POST') {
-            await bot.handleUpdate(req.body, res);
-        } else {
-            res.status(200).send('Bot funcionando correctamente');
+    if (req.method === 'POST') {
+        try {
+            await bot.handleUpdate(req.body);
+            res.status(200).send('OK');
+        } catch (err) {
+            console.error(err);
+            res.status(500).send('Error');
         }
-    } catch (error) {
-        console.error("Error en Webhook:", error);
-        res.status(500).send('Error interno');
+    } else {
+        res.status(200).send('Servidor del Bot Activo');
     }
 };
-                  
+            
