@@ -1,46 +1,69 @@
 const { Telegraf } = require('telegraf');
+const { createClient } = require('@supabase/supabase-js');
 
-// REEMPLAZA ESTOS DATOS
-const bot = new Telegraf('TU_TOKEN_DE_BOTFATHER');
-const CANAL_1 = '@tu_canal_1'; // Reemplaza con tus canales
+// --- CONFIGURACIÓN ---
+const bot = new Telegraf('TU_TOKEN_BOTFATHER');
+const supabase = createClient('TU_SUPABASE_URL', 'TU_SUPABASE_KEY');
+
+const CANAL_1 = '@tu_canal_1';
 const CANAL_2 = '@tu_canal_2';
-const APP_URL = 'https://osmel115.github.io/Referidos-Bot-ton/';
 
 bot.start(async (ctx) => {
     const userId = ctx.from.id;
-    const referrerId = ctx.payload; // Aquí llega el ID del que invitó
+    const referrerId = ctx.payload; // ID del que invitó
 
-    try {
-        // 1. Verificar si el usuario está unido a los 2 canales
-        const member1 = await ctx.telegram.getChatMember(CANAL_1, userId);
-        const member2 = await ctx.telegram.getChatMember(CANAL_2, userId);
+    // 1. Verificación de canales
+    const member1 = await ctx.telegram.getChatMember(CANAL_1, userId);
+    const member2 = await ctx.telegram.getChatMember(CANAL_2, userId);
+    
+    const isSubscribed = ['member', 'administrator', 'creator'].includes(member1.status) && 
+                         ['member', 'administrator', 'creator'].includes(member2.status);
 
-        const isSubscribed = ['member', 'administrator', 'creator'].includes(member1.status) && 
-                             ['member', 'administrator', 'creator'].includes(member2.status);
-
-        if (!isSubscribed) {
-            return ctx.reply(`⚠️ Para usar la app, debes unirte a nuestros canales:\n1. ${CANAL_1}\n2. ${CANAL_2}\n\n¡Luego pulsa /start de nuevo!`);
-        }
-
-        // 2. Lógica de Referidos (Simulada hasta conectar DB)
-        if (referrerId && referrerId != userId) {
-            console.log(`Usuario ${userId} referido por ${referrerId}`);
-            // AQUÍ IRÁ LA LÓGICA DE SUMAR 0.01 TON EN LA BASE DE DATOS
-        }
-
-        // 3. Botón para abrir la Mini App
-        ctx.reply('✅ Verificación exitosa. ¡Bienvenido!', {
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: "🚀 Abrir Panel de TON", web_app: { url: APP_URL } }]
-                ]
-            }
-        });
-
-    } catch (error) {
-        console.error("Error en el start:", error);
-        ctx.reply("Hubo un error al verificar los canales. Asegúrate de que el bot sea administrador de los canales.");
+    if (!isSubscribed) {
+        return ctx.reply("❌ Únete a los canales para participar.");
     }
+
+    // 2. Revisar si el usuario ya existe en la base de datos
+    let { data: user } = await supabase
+        .from('usuarios')
+        .select('*')
+        .eq('id_telegram', userId)
+        .single();
+
+    if (!user) {
+        // ES UN USUARIO NUEVO
+        await supabase.from('usuarios').insert([
+            { id_telegram: userId, referido_por: referrerId }
+        ]);
+
+        // Si fue referido por alguien, le pagamos al invitador
+        if (referrerId && referrerId != userId) {
+            // Sumar 0.01 al balance del invitador
+            let { data: inviter } = await supabase
+                .from('usuarios')
+                .select('balance')
+                .eq('id_telegram', referrerId)
+                .single();
+
+            if (inviter) {
+                const nuevoBalance = inviter.balance + 0.01;
+                await supabase
+                    .from('usuarios')
+                    .update({ balance: nuevoBalance })
+                    .eq('id_telegram', referrerId);
+                
+                // Avisar al invitador (opcional)
+                bot.telegram.sendMessage(referrerId, "💰 ¡Alguien se unió con tu link! Has ganado 0.01 TON.");
+            }
+        }
+    }
+
+    ctx.reply("✅ ¡Bienvenido! Usa el botón de abajo para ver tu balance.", {
+        reply_markup: {
+            inline_keyboard: [[{ text: "Abrir App", web_app: { url: "https://osmel115.github.io/Referidos-Bot-ton/" } }]]
+        }
+    });
 });
 
 bot.launch();
+        
