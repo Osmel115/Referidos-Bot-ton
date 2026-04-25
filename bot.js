@@ -2,7 +2,7 @@ const { Telegraf } = require('telegraf');
 const { createClient } = require('@supabase/supabase-js');
 
 // --- CONFIGURACIÓN ---
-const bot = new Telegraf('TU_TOKEN_BOTFATHER');
+const bot = new Telegraf('8614330099:AAGG95zS5SSm1qlTWMB-WvHqKcjV2VMNP3A');
 const supabase = createClient('https://zzjxfwsqrzzehzongdrd.supabase.co', 'sb_secret_vRuDoOpBaWK-Mcy0bJsc8Q_aB8o3PsO');
 
 const CANAL_1 = '@tu_canal_1';
