@@ -16,7 +16,7 @@ bot.start(async (ctx) => {
     const referrerId = ctx.payload ? Number(ctx.payload) : null; 
 
     try {
-        // 1. VERIFICACIÓN ESTRICTA DE CANALES
+        // 1. VERIFICACIÓN DE CANALES
         const member1 = await ctx.telegram.getChatMember(CANAL_1, userId);
         const member2 = await ctx.telegram.getChatMember(CANAL_2, userId);
         
@@ -24,7 +24,7 @@ bot.start(async (ctx) => {
                              ['member', 'administrator', 'creator'].includes(member2.status);
 
         if (!isSubscribed) {
-            return ctx.reply(`⚠️ ACCESO RESTRINGIDO ⚠️\n\nDebes unirte a nuestros canales para poder participar y ganar TON:\n\n1️⃣ ${CANAL_1}\n2️⃣ ${CANAL_2}\n\nUna vez unido, presiona /start de nuevo.`, {
+            return ctx.reply(`⚠️ ACCESO RESTRINGIDO ⚠️\n\nDebes unirte a nuestros canales para participar:\n\n1️⃣ ${CANAL_1}\n2️⃣ ${CANAL_2}\n\nUna vez unido, presiona /start.`, {
                 reply_markup: {
                     inline_keyboard: [
                         [{ text: "Unirse al Canal 1", url: `https://t.me/${CANAL_1.replace('@','')}` }],
@@ -43,13 +43,14 @@ bot.start(async (ctx) => {
             .single();
 
         if (!user) {
-            // REGISTRAR USUARIO NUEVO (Solo si pasó la verificación)
+            // REGISTRAR USUARIO NUEVO
             await supabase.from('usuarios').insert([
                 { id_telegram: userId, referido_por: referrerId, balance: 0 }
             ]);
 
-            // PAGAR AL INVITADOR
+            // PAGAR AL INVITADOR (referrerId)
             if (referrerId && referrerId !== userId) {
+                // Buscamos al invitador para obtener su balance actual
                 let { data: inviter } = await supabase
                     .from('usuarios')
                     .select('balance')
@@ -57,22 +58,25 @@ bot.start(async (ctx) => {
                     .single();
 
                 if (inviter) {
-                    const balanceActual = Number(inviter.balance) || 0;
+                    const balanceActual = parseFloat(inviter.balance) || 0;
                     const nuevoBalance = balanceActual + 0.01;
 
-                    await supabase
+                    // Actualizamos el balance en la base de datos
+                    const { error: updateError } = await supabase
                         .from('usuarios')
                         .update({ balance: nuevoBalance })
                         .eq('id_telegram', referrerId);
                     
-                    // Notificar al invitador
-                    bot.telegram.sendMessage(referrerId, `💰 ¡Nuevo referido! Has ganado 0.01 TON.\nTu nuevo balance: ${nuevoBalance.toFixed(2)} TON`);
+                    if (!updateError) {
+                        // Notificar al invitador con su balance real
+                        bot.telegram.sendMessage(referrerId, `💰 ¡Nuevo referido! Has ganado 0.01 TON.\nTu nuevo balance es: ${nuevoBalance.toFixed(2)} TON`);
+                    }
                 }
             }
         }
 
-        // 3. RESPUESTA CON EL BOTÓN DE LA APP
-        ctx.reply("✅ ¡Verificación exitosa! Ya tienes acceso al panel de control.", {
+        // 3. RESPUESTA FINAL
+        ctx.reply("✅ ¡Verificación exitosa!", {
             reply_markup: {
                 inline_keyboard: [[
                     { text: "🚀 Abrir Panel", web_app: { url: "https://referidos-bot-ton.vercel.app/" } }
@@ -81,26 +85,22 @@ bot.start(async (ctx) => {
         });
 
     } catch (error) {
-        console.error("Error en el bot:", error);
-        ctx.reply("❌ Error: Asegúrate de que el bot sea administrador en ambos canales.");
+        console.error("Error en start:", error);
+        ctx.reply("❌ Error al verificar. Asegúrate de que el bot sea admin de los canales.");
     }
 });
 
-// Manejador para el botón de verificar suscripción
-bot.action('check_sub', (ctx) => ctx.reply("Vuelve a enviar el comando /start para verificar."));
+bot.action('check_sub', (ctx) => ctx.reply("Reenvía /start para verificar tu suscripción."));
 
-// --- LÓGICA PARA VERCEL ---
 module.exports = async (req, res) => {
     if (req.method === 'POST') {
         try {
             await bot.handleUpdate(req.body);
             res.status(200).send('OK');
         } catch (err) {
-            console.error(err);
             res.status(500).send('Error');
         }
     } else {
-        res.status(200).send('Bot Online');
+        res.status(200).send('Bot Activo');
     }
 };
-                              
