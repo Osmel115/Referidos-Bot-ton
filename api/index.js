@@ -6,8 +6,8 @@ const bot = new Telegraf('8614330099:AAGG95zS5SSm1qlTWMB-WvHqKcjV2VMNP3A');
 const supabase = createClient('https://zzjxfwsqrzzehzongdrd.supabase.co', 'sb_secret_vRuDoOpBaWK-Mcy0bJsc8Q_aB8o3PsO');
 
 // REEMPLAZA ESTOS CON TUS CANALES REALES
-const CANAL_1 = '@tu_canal_1'; 
-const CANAL_2 = '@tu_canal_2';
+const CANAL_1 = '@CryptoInvestmentsWebs'; 
+const CANAL_2 = '@AlfaWithdrawalChannel';
 
 bot.start(async (ctx) => {
     const userId = ctx.from.id;
