@@ -10,11 +10,13 @@
         body { font-family: sans-serif; text-align: center; background: #f4f4f4; color: #333; margin: 0; padding: 10px; }
         .card { background: white; margin: 15px auto; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px; }
         h1 { color: #0088cc; font-size: 2.5em; margin: 10px 0; }
-        h2 { font-size: 1.2em; color: #666; }
-        button { background: #0088cc; color: white; border: none; padding: 15px 25px; border-radius: 10px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1em; }
+        h2 { font-size: 1.1em; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-value { color: #333; font-size: 1.8em; font-weight: bold; margin: 5px 0; }
+        button { background: #0088cc; color: white; border: none; padding: 15px 25px; border-radius: 10px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1em; margin-top: 10px; }
         button:disabled { background: #ccc; cursor: not-allowed; }
         input { width: 90%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; text-align: center; background: #f9f9f9; margin-top: 10px; font-size: 0.9em; color: #333; }
         .status { font-size: 0.8em; color: #888; margin-top: 10px; }
+        .divider { border-top: 1px solid #eee; margin: 15px 0; }
     </style>
 </head>
 <body>
@@ -22,6 +24,14 @@
     <div class="card">
         <h2>Mi Balance</h2>
         <h1 id="balance">0.000 TON</h1>
+        
+        <div class="divider"></div>
+        
+        <h2>Mis Referidos</h2>
+        <div class="stat-value" id="referrals-count">0</div>
+        
+        <div class="divider"></div>
+        
         <p>Mínimo de retiro: <strong>0.05 TON</strong></p>
         <button id="withdraw-btn" onclick="solicitarRetiro()" disabled>Retirar</button>
     </div>
@@ -38,11 +48,9 @@
         tg.expand();
         tg.ready();
 
-        // CONFIGURACIÓN DE SUPABASE
         const SUPABASE_URL = 'https://zzjxfwsqrzzehzongdrd.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_abzxh0zwKbNmcoXJ5kb12Q_pyv1YgY8';
         
-        // CORRECCIÓN AQUÍ: Usamos la variable global de la librería
         const { createClient } = supabase;
         const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -58,25 +66,33 @@
             document.getElementById('ref-link').value = `https://t.me/ReferidosBotTon_bot?start=${userId}`;
 
             try {
-                // Consultar balance en la tabla 'usuarios'
-                let { data: usuario, error } = await supabaseClient
+                // 1. CONSULTAR BALANCE
+                let { data: usuario, error: userError } = await supabaseClient
                     .from('usuarios')
                     .select('balance')
                     .eq('id_telegram', userId)
                     .single();
 
-                if (error && error.code !== 'PGRST116') throw error; // Ignorar error si el usuario no existe aún
-
                 if (usuario) {
-                    const balance = usuario.balance || 0;
+                    const balance = Number(usuario.balance) || 0;
                     document.getElementById('balance').innerText = `${balance.toFixed(3)} TON`;
 
                     if (balance >= 0.05) {
                         document.getElementById('withdraw-btn').disabled = false;
                     }
-                } else {
-                    document.getElementById('balance').innerText = "0.000 TON";
                 }
+
+                // 2. CONSULTAR CONTEO DE REFERIDOS
+                // Buscamos cuántas filas tienen tu ID en la columna 'referido_por'
+                let { count, error: countError } = await supabaseClient
+                    .from('usuarios')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('referido_por', userId);
+
+                if (!countError) {
+                    document.getElementById('referrals-count').innerText = count || 0;
+                }
+
             } catch (err) {
                 console.error("Error cargando datos:", err);
                 document.getElementById('balance').innerText = "Error DB";
@@ -109,4 +125,5 @@
         cargarDatosUsuario();
     </script>
 </body>
-</html>
+    </html>
+
