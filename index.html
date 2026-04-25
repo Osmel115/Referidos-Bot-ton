@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <title>TON Referral Mini App</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #f4f4f4; }
+        .card { background: white; margin: 20px; padding: 20px; border-radius: 15px; }
+        button { background: #0088cc; color: white; border: none; padding: 10px 20px; border-radius: 5px; }
+        button:disabled { background: grey; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Mi Balance</h2>
+        <h1 id="balance">0.00 TON</h1>
+        <p>Mínimo de retiro: 0.05 TON</p>
+        <button id="withdraw-btn" disabled>Retirar</button>
+    </div>
+    
+    <div class="card">
+        <h3>Invita y Gana</h3>
+        <p>Gana 0.01 TON por cada amigo que se una.</p>
+        <input type="text" id="ref-link" readonly style="width: 80%;">
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Abre la app en pantalla completa
+
+        // Simulación de datos (Aquí deberías conectar con tu base de datos)
+        const userBalance = 0.03; 
+        document.getElementById('balance').innerText = `${userBalance} TON`;
+        document.getElementById('ref-link').value = `https://t.me/TuBot?start=${tg.initDataUnsafe.user.id}`;
+
+        if (userBalance >= 0.05) {
+            document.getElementById('withdraw-btn').disabled = false;
+        }
+    </script>
+</body>
+                                                     </html>
+                                                     
