@@ -2,15 +2,20 @@ const { Telegraf } = require('telegraf');
 const { createClient } = require('@supabase/supabase-js');
 
 // --- CONFIGURACIÓN ---
-const bot = new Telegraf('8614330099:AAGG95zS5SSm1qlTWMB-WvHqKcjV2VMNP3A');
-const supabase = createClient('https://zzjxfwsqrzzehzongdrd.supabase.co', 'sb_secret_vRuDoOpBaWK-Mcy0bJsc8Q_aB8o3PsO');
+// Es mejor usar process.env para que Vercel use las llaves que configuraste en su panel
+const bot = new Telegraf(process.env.BOT_TOKEN || '8614330099:AAGG95zS5SSm1qlTWMB-WvHqKcjV2VMNP3A');
+const supabase = createClient(
+    process.env.SUPABASE_URL || 'https://zzjxfwsqrzzehzongdrd.supabase.co', 
+    process.env.SUPABASE_KEY || 'sb_secret_vRuDoOpBaWK-Mcy0bJsc8Q_aB8o3PsO'
+);
 
 const CANAL_1 = '@CryptoInvestmentsWebs'; 
 const CANAL_2 = '@AlfaWithdrawalChannel';
 
 bot.start(async (ctx) => {
     const userId = ctx.from.id;
-    const referrerId = ctx.payload ? parseInt(ctx.payload) : null; 
+    // El payload llega como string, lo convertimos a número
+    const referrerId = ctx.payload ? Number(ctx.payload) : null; 
 
     try {
         // 1. Verificación de canales
@@ -34,7 +39,7 @@ bot.start(async (ctx) => {
         if (!user) {
             // Registrar usuario nuevo
             await supabase.from('usuarios').insert([
-                { id_telegram: userId, referido_por: referrerId }
+                { id_telegram: userId, referido_por: referrerId, balance: 0 }
             ]);
 
             // Pagar al invitador si existe y no es el mismo usuario
@@ -46,13 +51,18 @@ bot.start(async (ctx) => {
                     .single();
 
                 if (inviter) {
-                    const nuevoBalance = (Number(inviter.balance) || 0) + 0.01;
-                    await supabase
+                    // ARREGLO DE SUMA: Forzamos que sean números
+                    const balanceActual = Number(inviter.balance) || 0;
+                    const nuevoBalance = balanceActual + 0.01;
+
+                    const { error: updateError } = await supabase
                         .from('usuarios')
                         .update({ balance: nuevoBalance })
                         .eq('id_telegram', referrerId);
                     
-                    bot.telegram.sendMessage(referrerId, "💰 ¡Un nuevo referido se ha unido! Has ganado 0.01 TON.");
+                    if (!updateError) {
+                        bot.telegram.sendMessage(referrerId, `💰 ¡Un nuevo referido se ha unido! Has ganado 0.01 TON.\nTu nuevo balance: ${nuevoBalance.toFixed(2)} TON`);
+                    }
                 }
             }
         }
@@ -60,7 +70,6 @@ bot.start(async (ctx) => {
         ctx.reply("✅ ¡Verificación exitosa!", {
             reply_markup: {
                 inline_keyboard: [[
-                    // USAMOS LA URL DE VERCEL AQUÍ
                     { text: "🚀 Abrir Panel", web_app: { url: "https://referidos-bot-ton.vercel.app/" } }
                 ]]
             }
@@ -68,7 +77,7 @@ bot.start(async (ctx) => {
 
     } catch (error) {
         console.error("Error en el bot:", error);
-        ctx.reply("❌ Error: Asegúrate de que el bot sea administrador de los canales.");
+        ctx.reply("❌ Error al verificar canales. Asegúrate de que el bot sea administrador.");
     }
 });
 
