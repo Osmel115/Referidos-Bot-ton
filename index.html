@@ -59,11 +59,7 @@
             
             if (!user) {
                 document.body.style.display = "block";
-                document.body.innerHTML = `
-                    <div style="padding: 50px; text-align: center;">
-                        <h2 style="color: #cc0000;">⚠️ ACCESO DENEGADO</h2>
-                        <p>Por favor, abre la app desde el bot.</p>
-                    </div>`;
+                document.body.innerHTML = `<div style="padding: 50px;"><h2>⚠️ ACCESO DENEGADO</h2><p>Abre la app desde el bot.</p></div>`;
                 return;
             }
 
@@ -81,7 +77,6 @@
                 if (usuario) {
                     const balanceReal = parseFloat(usuario.balance) || 0;
                     document.getElementById('balance').innerText = balanceReal.toFixed(3) + " TON";
-                    // Habilitar botón si cumple el mínimo de 0.01
                     if (balanceReal >= 0.01) {
                         document.getElementById('withdraw-btn').disabled = false;
                     }
@@ -95,10 +90,7 @@
                 if (!countError) {
                     document.getElementById('referrals-count').innerText = count || 0;
                 }
-
-            } catch (err) {
-                console.error("Error cargando datos:", err);
-            }
+            } catch (err) { console.error(err); }
         }
 
         function copiarLink() {
@@ -109,25 +101,41 @@
             setTimeout(() => { document.getElementById('copy-status').innerText = "Toca el link para copiarlo"; }, 2000);
         }
 
-        // --- FUNCIÓN DE RETIRO AUTOMÁTICO CORREGIDA ---
-        function solicitarRetiro() {
+        // --- SOLUCIÓN PARA QUE NO SE QUEDE TRABADO ---
+        async function solicitarRetiro() {
             const user = tg.initDataUnsafe.user;
             const balanceTexto = document.getElementById('balance').innerText;
+            const balanceNumerico = parseFloat(balanceTexto);
 
-            tg.showConfirm(`¿Confirmas el retiro automático de ${balanceTexto} a tu cuenta de @CryptoBot?`, (confirmado) => {
+            tg.showConfirm(`¿Confirmas el retiro automático de ${balanceTexto}?`, async (confirmado) => {
                 if (confirmado) {
-                    // Preparamos el objeto JSON para el BOT
-                    const datosRetiro = {
-                        accion: "retiro_solicitado",
-                        id: user.id,
-                        monto: balanceTexto // Enviamos ej: "0.010 TON"
-                    };
+                    const btn = document.getElementById('withdraw-btn');
+                    btn.disabled = true;
+                    btn.innerText = "Procesando...";
 
-                    // ENVIAR DATOS AL BOT Y CERRAR
-                    tg.sendData(JSON.stringify(datosRetiro));
-                    
-                    // Mostramos un aviso rápido antes de que se cierre
-                    tg.showAlert("🚀 Procesando retiro... Revisa el chat del bot.");
+                    try {
+                        // Enviamos la petición directamente a tu API en Vercel
+                        const response = await fetch('https://referidos-bot-ton.vercel.app/api/index', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                accion_manual: "retiro_directo",
+                                id: user.id,
+                                monto: balanceNumerico
+                            })
+                        });
+
+                        if (response.ok) {
+                            tg.showAlert("✅ ¡Retiro enviado! Revisa los mensajes de tu bot.");
+                            setTimeout(() => tg.close(), 1500);
+                        } else {
+                            throw new Error("Error en servidor");
+                        }
+                    } catch (err) {
+                        tg.showAlert("❌ Hubo un problema al conectar con el bot. Intenta de nuevo.");
+                        btn.disabled = false;
+                        btn.innerText = "Retirar";
+                    }
                 }
             });
         }
@@ -135,4 +143,4 @@
         cargarDatosUsuario();
     </script>
 </body>
-    </html>
+</html>
