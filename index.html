@@ -2,42 +2,93 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <title>TON Referral Mini App</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #f4f4f4; }
-        .card { background: white; margin: 20px; padding: 20px; border-radius: 15px; }
-        button { background: #0088cc; color: white; border: none; padding: 10px 20px; border-radius: 5px; }
-        button:disabled { background: grey; }
+        body { font-family: sans-serif; text-align: center; background: #f4f4f4; color: #333; }
+        .card { background: white; margin: 20px; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #0088cc; font-size: 2.5em; margin: 10px 0; }
+        button { background: #0088cc; color: white; border: none; padding: 12px 25px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        input { width: 90%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; text-align: center; background: #eee; margin-top: 10px; }
+        .status { font-size: 0.8em; color: #666; margin-top: 15px; }
     </style>
 </head>
 <body>
+
     <div class="card">
         <h2>Mi Balance</h2>
-        <h1 id="balance">0.00 TON</h1>
-        <p>Mínimo de retiro: 0.05 TON</p>
-        <button id="withdraw-btn" disabled>Retirar</button>
+        <h1 id="balance">Cargando...</h1>
+        <p>Mínimo de retiro: <strong>0.05 TON</strong></p>
+        <button id="withdraw-btn" onclick="solicitarRetiro()" disabled>Retirar</button>
     </div>
     
     <div class="card">
         <h3>Invita y Gana</h3>
         <p>Gana 0.01 TON por cada amigo que se una.</p>
-        <input type="text" id="ref-link" readonly style="width: 80%;">
+        <input type="text" id="ref-link" readonly onclick="this.select()">
+        <p class="status">Toca el link para copiarlo</p>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand(); // Abre la app en pantalla completa
+        tg.expand();
+        tg.ready();
 
-        // Simulación de datos (Aquí deberías conectar con tu base de datos)
-        const userBalance = 0.03; 
-        document.getElementById('balance').innerText = `${userBalance} TON`;
-        document.getElementById('ref-link').value = `https://t.me/TuBot?start=${tg.initDataUnsafe.user.id}`;
+        // CONFIGURACIÓN DE SUPABASE
+        const SUPABASE_URL = 'https://zzjxfwsqrzzehzongdrd.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_abzxh0zwKbNmcoXJ5kb12Q_pyv1YgY8'; // Key pública segura
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        if (userBalance >= 0.05) {
-            document.getElementById('withdraw-btn').disabled = false;
+        async function cargarDatosUsuario() {
+            const user = tg.initDataUnsafe.user;
+            
+            if (!user) {
+                document.getElementById('balance').innerText = "Error: Abrir desde Telegram";
+                return;
+            }
+
+            const userId = user.id;
+            // Generar el link de referido con el nombre de tu bot (Cambia 'TuBot_User' por el real)
+            document.getElementById('ref-link').value = `https://t.me/ReferidosBotTon_bot?start=${userId}`;
+
+            try {
+                // Consultar balance en la tabla 'usuarios'
+                let { data: usuario, error } = await supabase
+                    .from('usuarios')
+                    .select('balance')
+                    .eq('id_telegram', userId)
+                    .single();
+
+                if (error) throw error;
+
+                if (usuario) {
+                    const balance = usuario.balance || 0;
+                    document.getElementById('balance').innerText = `${balance.toFixed(3)} TON`;
+
+                    // Habilitar botón si llega al mínimo
+                    if (balance >= 0.05) {
+                        document.getElementById('withdraw-btn').disabled = false;
+                    }
+                } else {
+                    document.getElementById('balance').innerText = "0.000 TON";
+                    console.log("Usuario no registrado aún en la DB.");
+                }
+            } catch (err) {
+                console.error("Error cargando datos:", err);
+                document.getElementById('balance').innerText = "Error al conectar";
+            }
         }
+
+        function solicitarRetiro() {
+            tg.showAlert("Solicitud enviada. El administrador revisará tu balance para realizar el pago.");
+        }
+
+        // Ejecutar carga al abrir
+        cargarDatosUsuario();
     </script>
 </body>
-                                                     </html>
-                                                     
+            </html>
+    
