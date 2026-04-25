@@ -2,7 +2,6 @@ const { Telegraf } = require('telegraf');
 const { createClient } = require('@supabase/supabase-js');
 
 // --- CONFIGURACIÓN ---
-// Es mejor usar process.env para que Vercel use las llaves que configuraste en su panel
 const bot = new Telegraf(process.env.BOT_TOKEN || '8614330099:AAGG95zS5SSm1qlTWMB-WvHqKcjV2VMNP3A');
 const supabase = createClient(
     process.env.SUPABASE_URL || 'https://zzjxfwsqrzzehzongdrd.supabase.co', 
@@ -14,11 +13,10 @@ const CANAL_2 = '@AlfaWithdrawalChannel';
 
 bot.start(async (ctx) => {
     const userId = ctx.from.id;
-    // El payload llega como string, lo convertimos a número
     const referrerId = ctx.payload ? Number(ctx.payload) : null; 
 
     try {
-        // 1. Verificación de canales
+        // 1. VERIFICACIÓN ESTRICTA DE CANALES
         const member1 = await ctx.telegram.getChatMember(CANAL_1, userId);
         const member2 = await ctx.telegram.getChatMember(CANAL_2, userId);
         
@@ -26,10 +24,18 @@ bot.start(async (ctx) => {
                              ['member', 'administrator', 'creator'].includes(member2.status);
 
         if (!isSubscribed) {
-            return ctx.reply(`❌ Debes unirte a los canales para participar:\n1️⃣ ${CANAL_1}\n2️⃣ ${CANAL_2}`);
+            return ctx.reply(`⚠️ ACCESO RESTRINGIDO ⚠️\n\nDebes unirte a nuestros canales para poder participar y ganar TON:\n\n1️⃣ ${CANAL_1}\n2️⃣ ${CANAL_2}\n\nUna vez unido, presiona /start de nuevo.`, {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "Unirse al Canal 1", url: `https://t.me/${CANAL_1.replace('@','')}` }],
+                        [{ text: "Unirse al Canal 2", url: `https://t.me/${CANAL_2.replace('@','')}` }],
+                        [{ text: "🔄 Verificar Suscripción", callback_data: "check_sub" }]
+                    ]
+                }
+            });
         }
 
-        // 2. Revisar si el usuario ya existe
+        // 2. REVISAR SI EL USUARIO YA EXISTE
         let { data: user } = await supabase
             .from('usuarios')
             .select('*')
@@ -37,12 +43,12 @@ bot.start(async (ctx) => {
             .single();
 
         if (!user) {
-            // Registrar usuario nuevo
+            // REGISTRAR USUARIO NUEVO (Solo si pasó la verificación)
             await supabase.from('usuarios').insert([
                 { id_telegram: userId, referido_por: referrerId, balance: 0 }
             ]);
 
-            // Pagar al invitador si existe y no es el mismo usuario
+            // PAGAR AL INVITADOR
             if (referrerId && referrerId !== userId) {
                 let { data: inviter } = await supabase
                     .from('usuarios')
@@ -51,23 +57,22 @@ bot.start(async (ctx) => {
                     .single();
 
                 if (inviter) {
-                    // ARREGLO DE SUMA: Forzamos que sean números
                     const balanceActual = Number(inviter.balance) || 0;
                     const nuevoBalance = balanceActual + 0.01;
 
-                    const { error: updateError } = await supabase
+                    await supabase
                         .from('usuarios')
                         .update({ balance: nuevoBalance })
                         .eq('id_telegram', referrerId);
                     
-                    if (!updateError) {
-                        bot.telegram.sendMessage(referrerId, `💰 ¡Un nuevo referido se ha unido! Has ganado 0.01 TON.\nTu nuevo balance: ${nuevoBalance.toFixed(2)} TON`);
-                    }
+                    // Notificar al invitador
+                    bot.telegram.sendMessage(referrerId, `💰 ¡Nuevo referido! Has ganado 0.01 TON.\nTu nuevo balance: ${nuevoBalance.toFixed(2)} TON`);
                 }
             }
         }
 
-        ctx.reply("✅ ¡Verificación exitosa!", {
+        // 3. RESPUESTA CON EL BOTÓN DE LA APP
+        ctx.reply("✅ ¡Verificación exitosa! Ya tienes acceso al panel de control.", {
             reply_markup: {
                 inline_keyboard: [[
                     { text: "🚀 Abrir Panel", web_app: { url: "https://referidos-bot-ton.vercel.app/" } }
@@ -77,11 +82,14 @@ bot.start(async (ctx) => {
 
     } catch (error) {
         console.error("Error en el bot:", error);
-        ctx.reply("❌ Error al verificar canales. Asegúrate de que el bot sea administrador.");
+        ctx.reply("❌ Error: Asegúrate de que el bot sea administrador en ambos canales.");
     }
 });
 
-// --- LÓGICA PARA VERCEL (WEBHOOK) ---
+// Manejador para el botón de verificar suscripción
+bot.action('check_sub', (ctx) => ctx.reply("Vuelve a enviar el comando /start para verificar."));
+
+// --- LÓGICA PARA VERCEL ---
 module.exports = async (req, res) => {
     if (req.method === 'POST') {
         try {
@@ -92,7 +100,7 @@ module.exports = async (req, res) => {
             res.status(500).send('Error');
         }
     } else {
-        res.status(200).send('Servidor del Bot Activo');
+        res.status(200).send('Bot Online');
     }
 };
-            
+                              
