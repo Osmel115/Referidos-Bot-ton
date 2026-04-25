@@ -82,7 +82,7 @@
                 if (usuario) {
                     const balanceReal = parseFloat(usuario.balance) || 0;
                     document.getElementById('balance').innerText = balanceReal.toFixed(3) + " TON";
-                    if (balanceReal >= 0.05) {
+                    if (balanceReal >= 0.01) {
                         document.getElementById('withdraw-btn').disabled = false;
                     }
                 }
