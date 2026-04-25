@@ -1,0 +1,14 @@
+{
+  "name": "referidos-bot-ton",
+  "version": "1.0.0",
+  "description": "Bot de referidos TON",
+  "main": "bot.js",
+  "dependencies": {
+    "telegraf": "^4.16.3",
+    "@supabase/supabase-js": "^2.42.0"
+  },
+  "scripts": {
+    "start": "node bot.js"
+  }
+}
+
